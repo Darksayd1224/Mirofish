@@ -162,6 +162,18 @@ npm run backend   # Start backend only
 npm run frontend  # Start frontend only
 ```
 
+### Deploying the frontend on Netlify
+
+The included `netlify.toml` installs the frontend dependencies, publishes `frontend/dist`, and serves Vue Router pages correctly when opened directly or refreshed.
+
+The Python backend is a separate, long-running service. It must be hosted with its required Python dependencies, persistent upload storage, and backend environment variables. Deploying the frontend on Netlify does not start Flask or the simulation workers.
+
+Set `MIROFISH_BACKEND_URL` in the Netlify site's environment settings to the HTTPS origin of your running MiroFish backend, without an `/api` suffix, path, or credentials. Give it the Functions scope and redeploy. The included Netlify function forwards `/api/*` and `/health` to that backend without exposing the configured origin in the frontend bundle. Keep LLM and Zep credentials on the backend, never in `VITE_*` variables.
+
+The homepage checks `/health` and only enables simulations after the backend responds successfully. An unconfigured or unreachable backend displays an actionable status and a retry button instead of claiming the engine is ready.
+
+For requests that exceed the Netlify function's timeout or upload payload limits, set the optional build-time `VITE_API_BASE_URL` to your backend's public HTTPS origin and redeploy. This bypasses the function; configure the backend's CORS policy to allow your Netlify site. Local Vite development uses its existing Flask proxy for both `/api` and `/health` without requiring this override.
+
 ### Option 2: Docker Deployment
 
 ```bash

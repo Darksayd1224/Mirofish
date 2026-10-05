@@ -12,6 +12,7 @@
     "build": "cd frontend && npm run build"
   },
   "devDependencies": {
+    "@netlify/functions": "^6.0.2",
     "concurrently": "^9.2.4"
   },
   "engines": {
