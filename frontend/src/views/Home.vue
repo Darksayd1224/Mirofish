@@ -61,10 +61,13 @@
             <span class="status-dot">■</span> {{ $t('home.systemStatus') }}
           </div>
           
-          <h2 class="section-title">{{ $t('home.systemReady') }}</h2>
-          <p class="section-desc">
-            {{ $t('home.systemReadyDesc') }}
+          <h2 class="section-title" aria-live="polite">{{ $t(backendStatus === 'ready' ? 'home.systemReady' : backendStatus === 'checking' ? 'home.backendChecking' : 'home.backendUnavailable') }}</h2>
+          <p class="section-desc" role="status">
+            {{ $t(backendStatus === 'ready' ? 'home.systemReadyDesc' : backendMessage) }}
           </p>
+          <button v-if="backendStatus === 'unavailable'" class="backend-retry" @click="checkBackend">
+            {{ $t('common.retry') }}
+          </button>
           
           <!-- 数据指标卡片 -->
           <div class="metrics-row">
@@ -206,14 +209,15 @@
       </section>
 
       <!-- 历史项目数据库 -->
-      <HistoryDatabase />
+      <HistoryDatabase v-if="backendStatus === 'ready'" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import service from '../api'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 
@@ -231,13 +235,40 @@ const files = ref([])
 const loading = ref(false)
 const error = ref('')
 const isDragOver = ref(false)
+const backendStatus = ref('checking')
+const backendMessage = ref('home.backendCheckingDesc')
+let healthController
+
+const checkBackend = async () => {
+  backendStatus.value = 'checking'
+  backendMessage.value = 'home.backendCheckingDesc'
+  healthController = new AbortController()
+  try {
+    const response = await service.get('/health', { timeout: 10000, signal: healthController.signal })
+    if (response.status !== 'ok' || response.service !== 'MiroFish Backend') {
+      backendMessage.value = 'home.backendInvalidResponse'
+      backendStatus.value = 'unavailable'
+      return
+    }
+    backendStatus.value = 'ready'
+  } catch (error) {
+    if (healthController.signal.aborted) return
+    backendMessage.value = error.response?.data?.code === 'BACKEND_NOT_CONFIGURED'
+      ? 'home.backendNotConfigured'
+      : 'home.backendUnavailableDesc'
+    backendStatus.value = 'unavailable'
+  }
+}
+
+onMounted(checkBackend)
+onBeforeUnmount(() => healthController?.abort())
 
 // 文件输入引用
 const fileInput = ref(null)
 
 // 计算属性:是否可以提交
 const canSubmit = computed(() => {
-  return formData.value.simulationRequirement.trim() !== '' && files.value.length > 0
+  return backendStatus.value === 'ready' && formData.value.simulationRequirement.trim() !== '' && files.value.length > 0
 })
 
 // 触发文件选择
@@ -591,6 +622,21 @@ const startSimulation = () => {
   display: flex;
   gap: 20px;
   margin-bottom: 15px;
+}
+
+.backend-retry {
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--black);
+  padding: 10px 18px;
+  margin-bottom: 25px;
+  cursor: pointer;
+}
+
+.backend-retry:hover,
+.backend-retry:focus-visible {
+  border-color: var(--orange);
+  color: var(--orange);
 }
 
 .metric-card {
